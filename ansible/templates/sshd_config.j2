@@ -1,0 +1,31 @@
+Port 22
+Protocol 2
+
+PermitRootLogin no
+PasswordAuthentication no
+PermitEmptyPasswords no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+
+AllowUsers {{ allowed_users[group_names[0]] }}
+MaxAuthTries 3
+MaxSessions 4
+LoginGraceTime 30
+
+{% if 'bastion' in group_names %}
+AllowTcpForwarding yes
+{% else %}
+AllowTcpForwarding no
+{% endif %}
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+GatewayPorts no
+
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+LogLevel VERBOSE
+
+Subsystem sftp /usr/lib/openssh/sftp-server

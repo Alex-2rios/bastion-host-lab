@@ -1,0 +1,130 @@
+---
+- name: Harden the bastion and the hosts behind it
+  hosts: all
+  become: true
+
+  vars:
+    admin_cidr: "{{ lookup('env', 'ADMIN_CIDR') | default('203.0.113.0/24', true) }}"
+    bastion_ip: "{{ hostvars[groups['bastion'][0]]['ansible_host'] }}"
+    allowed_users:
+      bastion: jump
+      app: deploy
+      db: deploy
+
+  tasks:
+    - name: Install the packages every host needs
+      ansible.builtin.apt:
+        name:
+          - openssh-server
+          - ufw
+          - fail2ban
+          - unattended-upgrades
+        state: present
+        update_cache: true
+
+    - name: Create the service account
+      ansible.builtin.user:
+        name: "{{ allowed_users[group_names[0]] }}"
+        shell: /bin/bash
+        create_home: true
+        password: "*"
+
+    - name: Install the authorised key
+      ansible.posix.authorized_key:
+        user: "{{ allowed_users[group_names[0]] }}"
+        key: "{{ lookup('file', ssh_public_key) }}"
+        exclusive: true
+
+    - name: Apply the sshd configuration for this role
+      ansible.builtin.template:
+        src: "templates/sshd_config.j2"
+        dest: /etc/ssh/sshd_config
+        owner: root
+        group: root
+        mode: "0600"
+        validate: "/usr/sbin/sshd -t -f %s"
+      notify: restart sshd
+
+    - name: Deny everything inbound by default
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+
+    - name: Allow outbound by default, except on the database
+      community.general.ufw:
+        direction: outgoing
+        policy: "{{ 'deny' if 'db' in group_names else 'allow' }}"
+
+    - name: Allow DNS out from the database host
+      community.general.ufw:
+        rule: allow
+        direction: out
+        port: "53"
+      when: "'db' in group_names"
+
+    - name: Rate limit ssh on the bastion, from the admin network only
+      community.general.ufw:
+        rule: limit
+        from_ip: "{{ admin_cidr }}"
+        port: "22"
+        proto: tcp
+        comment: ssh from the admin network only
+      when: "'bastion' in group_names"
+
+    - name: Accept ssh only from the bastion on everything else
+      community.general.ufw:
+        rule: allow
+        from_ip: "{{ bastion_ip }}"
+        port: "22"
+        proto: tcp
+        comment: ssh from the bastion only
+      when: "'bastion' not in group_names"
+
+    - name: Accept mysql only from the application host
+      community.general.ufw:
+        rule: allow
+        from_ip: "{{ hostvars[groups['app'][0]]['ansible_host'] }}"
+        port: "3306"
+        proto: tcp
+        comment: mysql from the app host only
+      when: "'db' in group_names"
+
+    - name: Turn the firewall on
+      community.general.ufw:
+        state: enabled
+
+    - name: Ban repeated ssh failures
+      ansible.builtin.copy:
+        dest: /etc/fail2ban/jail.d/sshd.local
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [sshd]
+          enabled = true
+          port = 22
+          maxretry = 4
+          findtime = 10m
+          bantime = 1h
+      notify: restart fail2ban
+
+    - name: Apply security updates automatically
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+
+  handlers:
+    - name: restart sshd
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
+
+    - name: restart fail2ban
+      ansible.builtin.service:
+        name: fail2ban
+        state: restarted

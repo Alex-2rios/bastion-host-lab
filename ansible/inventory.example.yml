@@ -1,0 +1,22 @@
+all:
+  vars:
+    ansible_user: ansible
+    ssh_public_key: ~/.ssh/lab_key.pub
+
+  children:
+    bastion:
+      hosts:
+        bastion01:
+          ansible_host: 203.0.113.10
+
+    app:
+      hosts:
+        app01:
+          ansible_host: 172.30.20.20
+          ansible_ssh_common_args: -o ProxyJump=ansible@203.0.113.10
+
+    db:
+      hosts:
+        db01:
+          ansible_host: 172.30.20.30
+          ansible_ssh_common_args: -o ProxyJump=ansible@203.0.113.10

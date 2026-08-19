@@ -1,0 +1,64 @@
+name: bastion-host-lab
+
+services:
+  bastion:
+    build: ./bastion
+    container_name: lab-bastion
+    hostname: bastion
+    ports:
+      - "2222:22"
+    volumes:
+      - ./ssh:/keys:ro
+    networks:
+      dmz:
+        ipv4_address: 172.30.10.10
+      internal:
+        ipv4_address: 172.30.20.10
+    restart: unless-stopped
+
+  app:
+    build: ./app
+    container_name: lab-app
+    hostname: app01
+    volumes:
+      - ./ssh:/keys:ro
+    networks:
+      internal:
+        ipv4_address: 172.30.20.20
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: lab-db
+    hostname: db01
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootlab}
+      MYSQL_ROOT_HOST: localhost
+      MYSQL_DATABASE: inventory
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-applab}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      internal:
+        ipv4_address: 172.30.20.30
+    restart: unless-stopped
+
+networks:
+  dmz:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+  internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.20.0/24
+
+volumes:
+  db_data:

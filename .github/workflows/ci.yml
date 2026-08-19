@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint the scripts
+        run: shellcheck -e SC1090 scripts/*.sh
+
+      - name: Validate both sshd configurations
+        run: |
+          sudo cp bastion/sshd_config /tmp/sshd_bastion
+          sudo cp app/sshd_config /tmp/sshd_app
+          sudo sshd -t -f /tmp/sshd_bastion
+          sudo sshd -t -f /tmp/sshd_app
+
+      - name: Check the compose file
+        run: docker compose config -q
+
+  ansible:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ansible
+        run: |
+          pip install ansible-core
+          ansible-galaxy collection install community.general ansible.posix
+
+      - name: Syntax check the playbook
+        working-directory: ansible
+        run: |
+          cp inventory.example.yml inventory.yml
+          ansible-playbook --syntax-check playbook.yml
+
+  isolation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate the lab key
+        run: ./scripts/setup-keys.sh
+
+      - name: Bring the lab up
+        run: docker compose up -d --build
+
+      - name: The blocked paths have to stay blocked
+        run: ./scripts/verify-isolation.sh
+
+      - name: The jump path has to work
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR \
+              -i ssh/lab_key -p 2222 jump@127.0.0.1 hostname
+          ssh -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR \
+              -i ssh/lab_key \
+              -o "ProxyCommand=ssh -o StrictHostKeyChecking=accept-new -i ssh/lab_key -p 2222 -W %h:%p jump@127.0.0.1" \
+              deploy@172.30.20.20 hostname
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs

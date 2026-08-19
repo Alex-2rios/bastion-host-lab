@@ -1,5 +1,7 @@
 # Bastion host lab
 
+[![ci](https://github.com/Alex-2rios/bastion-host-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/Alex-2rios/bastion-host-lab/actions/workflows/ci.yml)
+
 A three host network where exactly one machine is reachable from outside, and everything else
 lives on a subnet with no route to the internet. Built with Docker Compose so I could break it,
 fix it and rebuild it in seconds instead of reinstalling VMs.
@@ -73,9 +75,30 @@ database open to the world.
 
 ## On real servers
 
-`scripts/ufw-rules.sh` applies one of three UFW profiles (`bastion`, `app`, `db`) to an Ubuntu
-host. The database profile denies outbound traffic by default and only allows DNS out, so a
-compromised database host cannot phone home.
+Two ways to apply this to actual machines.
+
+The quick one, `scripts/ufw-rules.sh`, applies one of three UFW profiles (`bastion`, `app`, `db`)
+to an Ubuntu host. The database profile denies outbound traffic by default and only allows DNS
+out, so a compromised database host cannot phone home.
+
+The one I would use for more than one server is the Ansible playbook in `ansible/`, which does
+the whole thing per role: creates the service account, installs the authorised key, renders the
+right sshd config, applies the firewall rules, sets up fail2ban and turns on unattended security
+upgrades.
+
+```bash
+cd ansible
+cp inventory.example.yml inventory.yml
+ansible-playbook --syntax-check playbook.yml
+ansible-playbook playbook.yml --check
+ansible-playbook playbook.yml
+```
+
+Two details in there worth pointing at. The sshd template is written through
+`validate: /usr/sbin/sshd -t -f %s`, so a config that would refuse to start never reaches the
+file, which matters when the config you are replacing is the one holding your session open. And
+the inventory reaches the internal hosts through `ProxyJump` on the bastion, so Ansible itself
+follows the same path as a human, with no direct route to those machines.
 
 ## What I learned
 
@@ -103,5 +126,6 @@ compromised database host cannot phone home.
 
 ## Next
 
-Replace the manual steps with an Ansible playbook, and add fail2ban on the bastion so the SSH
-logs do something other than pile up.
+Session recording on the bastion, so there is an audit trail of what was actually done through
+it, and a second jump host in another location so maintenance on the first one does not lock
+everyone out.

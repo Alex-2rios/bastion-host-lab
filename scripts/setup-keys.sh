@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KEY="$ROOT/ssh/lab_key"
 
+mkdir -p "$ROOT/ssh"
+
 if [ -f "$KEY" ]; then
     echo "key already exists at $KEY"
 else

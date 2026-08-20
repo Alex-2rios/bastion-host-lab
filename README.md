@@ -124,6 +124,24 @@ follows the same path as a human, with no direct route to those machines.
 - `ufw --force reset` on a remote host with a single SSH session open is how people lock
   themselves out of production. Second session first, always.
 
+## Working on this
+
+```bash
+make help
+```
+
+The usual ones: `make up, make verify, make shell, make ansible-check, make down`.
+
+Every push runs the CI workflow described above. A second workflow, `security.yml`, runs weekly
+and on every push: it scans the history for committed secrets with gitleaks, scans both images
+with Trivy, and checks the compose file for misconfiguration.
+
+Dependabot opens pull requests for the GitHub Actions and the dependencies once a week.
+
+Line endings are pinned to LF through `.gitattributes`, because half of this was written on
+Windows and shell scripts with carriage returns fail on Linux in a way that is genuinely
+confusing the first time.
+
 ## Next
 
 Session recording on the bastion, so there is an audit trail of what was actually done through

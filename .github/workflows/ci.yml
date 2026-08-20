@@ -20,6 +20,7 @@ jobs:
 
       - name: Validate both sshd configurations
         run: |
+          sudo mkdir -p /run/sshd
           sudo cp bastion/sshd_config /tmp/sshd_bastion
           sudo cp app/sshd_config /tmp/sshd_app
           sudo sshd -t -f /tmp/sshd_bastion

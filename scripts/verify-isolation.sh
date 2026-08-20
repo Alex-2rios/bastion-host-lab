@@ -12,6 +12,10 @@ tcp_from_container() {
     docker exec "$1" bash -c "timeout 2 bash -c 'exec 3<>/dev/tcp/$2/$3'" >/dev/null 2>&1
 }
 
+publishes_a_port() {
+    [ -n "$(docker port "$1" 2>/dev/null)" ]
+}
+
 check() {
     local description="$1" expected="$2" result
     shift 2
@@ -62,8 +66,11 @@ check "host    -> bastion ssh, the one published port" reachable \
 check "host    -> mysql directly" blocked \
     tcp_from_host 127.0.0.1 3306
 
-check "host    -> app ssh directly" blocked \
-    tcp_from_host 172.30.20.20 22
+check "app     publishes no port to the outside" blocked \
+    publishes_a_port lab-app
+
+check "db      publishes no port to the outside" blocked \
+    publishes_a_port lab-db
 
 check "bastion -> app ssh" reachable \
     tcp_from_container lab-bastion 172.30.20.20 22

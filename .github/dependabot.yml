@@ -6,15 +6,27 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: docker
     directory: /bastion
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      base-images:
+        patterns:
+          - "*"
 
   - package-ecosystem: docker
     directory: /app
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      base-images:
+        patterns:
+          - "*"

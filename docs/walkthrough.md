@@ -35,6 +35,16 @@ trick: it is the only path between the outside world and the internal subnet.
 ssh -i ssh/lab_key -p 2222 jump@127.0.0.1
 ```
 
+If you have rebuilt the containers, SSH will refuse to connect with
+`Host key for [127.0.0.1]:2222 has changed`. That is correct behaviour, not a bug: a rebuilt
+container generates fresh host keys, and from SSH's point of view the machine you trusted has
+been replaced. Clear the stale entries and reconnect:
+
+```bash
+ssh-keygen -R "[127.0.0.1]:2222"
+ssh-keygen -R 172.30.20.20
+```
+
 You should get the banner and a shell. Try to become root and you can't, the account is locked.
 Try password auth from another terminal and sshd refuses before it even prompts, because
 `AuthenticationMethods publickey` is set.
@@ -112,8 +122,14 @@ Network isolation and database grants are two independent layers, and you want b
 ./scripts/verify-isolation.sh
 ```
 
-Eight checks, and half of them are supposed to fail to connect. That is the point of the script,
-it asserts that the blocked paths are actually blocked rather than only testing the happy path.
+Nine checks, and five of them are supposed to come back blocked. That is the point of the script,
+it asserts that the closed paths are actually closed rather than only testing the happy path.
+
+Two of those checks changed after CI ran them on Linux. The original version asserted that the
+host could not reach `172.30.20.20` directly, which passed on Docker Desktop and failed on a
+Linux runner: a Docker host can always reach a bridge address it is hosting, `internal` network
+or not. The honest assertion is that neither the app nor the database publishes a port, which is
+what the script checks now.
 
 The probes use bash's `/dev/tcp` rather than `nc`, because the first version reported "blocked"
 on a machine that simply did not have netcat installed. A test that cannot tell "refused" from

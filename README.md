@@ -59,14 +59,15 @@ ssh -L 3307:172.30.20.30:3306 -N lab-bastion
 ```
   [ ok ]   host    -> bastion ssh, the one published port     reachable
   [ ok ]   host    -> mysql directly                          blocked
-  [ ok ]   host    -> app ssh directly                        blocked
+  [ ok ]   app     publishes no port to the outside           blocked
+  [ ok ]   db      publishes no port to the outside           blocked
   [ ok ]   bastion -> app ssh                                 reachable
   [ ok ]   bastion -> db mysql                                reachable
   [ ok ]   app     -> db mysql                                reachable
   [ ok ]   app     -> the internet                            blocked
   [ ok ]   db      -> the internet                            blocked
 
-passed 8, failed 0
+passed 9, failed 0
 ```
 
 Half of those checks are asserting that something does **not** work. Writing the negative tests
@@ -117,6 +118,13 @@ follows the same path as a human, with no direct route to those machines.
 - A bind mounted `authorized_keys` comes in with host ownership and permissions that sshd rejects
   under `StrictModes`. Rather than turning StrictModes off, the entrypoint copies the mounted key
   into place with the right owner and mode before sshd starts.
+- On a Linux Docker host a container's bridge address is reachable from the host itself, even on
+  a network declared `internal`. My isolation test asserted otherwise and passed only because
+  Docker Desktop does not route to container IPs. The real boundary is published ports and the
+  absence of a route out, so that is what the check asserts now.
+- Rebuilding a container regenerates its SSH host keys, so `known_hosts` starts refusing the
+  connection. That warning is the protection working, and the fix is `ssh-keygen -R`, not
+  `StrictHostKeyChecking=no`.
 - `ufw limit` instead of `ufw allow` for SSH rate limits repeated attempts from one source and
   costs nothing to turn on.
 - Network isolation and database grants overlap on purpose. `appuser@172.30.20.%` means that

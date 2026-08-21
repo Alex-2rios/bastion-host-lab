@@ -89,11 +89,17 @@ upgrades.
 
 ```bash
 cd ansible
+ansible-galaxy collection install -r requirements.yml
 cp inventory.example.yml inventory.yml
 ansible-playbook --syntax-check playbook.yml
 ansible-playbook playbook.yml --check
 ansible-playbook playbook.yml
 ```
+
+CI runs `ansible-lint` on it, and it passes at the `production` profile, which is the strictest
+one the tool ships. That was not free: the first version used a Jinja conditional to pick the
+outbound firewall policy, which works at runtime but cannot be checked statically, so it is now
+two tasks with a `when:` each. Easier to read as well.
 
 Two details in there worth pointing at. The sshd template is written through
 `validate: /usr/sbin/sshd -t -f %s`, so a config that would refuse to start never reaches the
